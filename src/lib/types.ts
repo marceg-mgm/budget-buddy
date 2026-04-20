@@ -47,6 +47,13 @@ export interface Expense {
 
 export type InvoiceStatus = "draft" | "sent" | "paid";
 
+export interface InvoiceItem {
+  description: string;
+  quantity: number;
+  unit_price: number;
+  tax_rate: number; // percent, e.g. 19 for 19%
+}
+
 export interface Invoice {
   id: string;
   user_id: string;
@@ -60,6 +67,7 @@ export interface Invoice {
   tax_amount: number;
   status: InvoiceStatus;
   notes: string | null;
+  items: InvoiceItem[];
   created_at: string;
 }
 
