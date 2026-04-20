@@ -140,23 +140,63 @@ export async function generateInvoicePdf(
   doc.text(invoice.client_name, margin, y);
   y += 28;
 
-  // ─── AMOUNTS TABLE ───
+  // ─── ITEMS TABLE ───
+  const items = Array.isArray(invoice.items) ? invoice.items : [];
+  const hasItems = items.length > 0;
+
+  if (hasItems) {
+    const body = items.map((it) => {
+      const qty = Number(it.quantity) || 0;
+      const unit = Number(it.unit_price) || 0;
+      const rate = Number(it.tax_rate) || 0;
+      const sub = Math.round(qty * unit * 100) / 100;
+      const tax = Math.round(((sub * rate) / 100) * 100) / 100;
+      const total = Math.round((sub + tax) * 100) / 100;
+      return [
+        it.description ?? "",
+        String(qty),
+        formatMoney(unit, invoice.currency),
+        `${rate}%`,
+        formatMoney(total, invoice.currency),
+      ];
+    });
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      head: [["Description", "Qty", "Unit price", "Tax", "Amount"]],
+      body,
+      theme: "striped",
+      headStyles: {
+        fillColor: [15, 15, 15],
+        textColor: 255,
+        fontStyle: "bold",
+        fontSize: 10,
+      },
+      bodyStyles: { fontSize: 10, textColor: 30 },
+      columnStyles: {
+        0: { cellWidth: "auto" },
+        1: { halign: "right", cellWidth: 40 },
+        2: { halign: "right", cellWidth: 80 },
+        3: { halign: "right", cellWidth: 50 },
+        4: { halign: "right", cellWidth: 90 },
+      },
+    });
+
+    // @ts-expect-error lastAutoTable is added at runtime by jspdf-autotable
+    y = (doc.lastAutoTable?.finalY ?? y) + 16;
+  }
+
+  // ─── TOTALS ───
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
-    head: [["Description", "Amount"]],
+    margin: { left: pageWidth - margin - 260, right: margin },
     body: [
       ["Subtotal", formatMoney(Number(invoice.amount), invoice.currency)],
       ["Tax", formatMoney(Number(invoice.tax_amount), invoice.currency)],
     ],
-    foot: [["Net Amount", formatMoney(Number(invoice.net_amount), invoice.currency)]],
+    foot: [["Total", formatMoney(Number(invoice.net_amount), invoice.currency)]],
     theme: "plain",
-    headStyles: {
-      fillColor: [245, 245, 245],
-      textColor: 80,
-      fontStyle: "bold",
-      fontSize: 10,
-    },
     bodyStyles: { fontSize: 11, textColor: 30 },
     footStyles: {
       fillColor: [15, 15, 15],
@@ -165,7 +205,7 @@ export async function generateInvoicePdf(
       fontSize: 12,
     },
     columnStyles: {
-      0: { cellWidth: "auto" },
+      0: { cellWidth: 100, fontStyle: "bold", textColor: 80 },
       1: { halign: "right", cellWidth: 160 },
     },
   });

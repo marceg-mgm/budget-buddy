@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
-import type { Invoice, InvoiceStatus } from "@/lib/types";
+import type { Invoice, InvoiceItem, InvoiceStatus } from "@/lib/types";
 import { CURRENCIES, formatMoney, round2 } from "@/lib/currency";
 import {
   Sheet,
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -39,6 +40,20 @@ interface Props {
 const BASE_TYPES = ["Invoice", "Credit Note", "Receipt", "Quote"];
 const STATUSES: InvoiceStatus[] = ["draft", "sent", "paid"];
 
+function emptyItem(): InvoiceItem {
+  return { description: "", quantity: 1, unit_price: 0, tax_rate: 0 };
+}
+
+function itemSubtotal(it: InvoiceItem): number {
+  return round2((Number(it.quantity) || 0) * (Number(it.unit_price) || 0));
+}
+function itemTax(it: InvoiceItem): number {
+  return round2((itemSubtotal(it) * (Number(it.tax_rate) || 0)) / 100);
+}
+function itemTotal(it: InvoiceItem): number {
+  return round2(itemSubtotal(it) + itemTax(it));
+}
+
 export function InvoiceDrawer({
   open,
   onOpenChange,
@@ -55,10 +70,7 @@ export function InvoiceDrawer({
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [clientName, setClientName] = useState("");
   const [currency, setCurrency] = useState(defaultCurrency);
-  const [amount, setAmount] = useState("");
-  const [taxAmount, setTaxAmount] = useState("");
-  const [netAmount, setNetAmount] = useState("");
-  const [netManual, setNetManual] = useState(false);
+  const [items, setItems] = useState<InvoiceItem[]>([emptyItem()]);
   const [status, setStatus] = useState<InvoiceStatus>("draft");
   const [notes, setNotes] = useState("");
   const [newType, setNewType] = useState("");
@@ -71,50 +83,88 @@ export function InvoiceDrawer({
       setInvoiceNumber(editing.invoice_number);
       setClientName(editing.client_name);
       setCurrency(editing.currency);
-      setAmount(String(editing.amount));
-      setTaxAmount(String(editing.tax_amount));
-      setNetAmount(String(editing.net_amount));
-      setNetManual(true);
       setStatus(editing.status);
       setNotes(editing.notes ?? "");
+      const existing = Array.isArray(editing.items) ? editing.items : [];
+      if (existing.length > 0) {
+        setItems(
+          existing.map((it) => ({
+            description: it.description ?? "",
+            quantity: Number(it.quantity) || 0,
+            unit_price: Number(it.unit_price) || 0,
+            tax_rate: Number(it.tax_rate) || 0,
+          })),
+        );
+      } else {
+        // Legacy invoice with totals only — seed a single line from the totals.
+        const subtotal = Number(editing.amount) || 0;
+        const tax = Number(editing.tax_amount) || 0;
+        const rate = subtotal > 0 ? round2((tax / subtotal) * 100) : 0;
+        setItems([
+          {
+            description: editing.notes?.split("\n")[0]?.slice(0, 80) || "Item",
+            quantity: 1,
+            unit_price: subtotal,
+            tax_rate: rate,
+          },
+        ]);
+      }
     } else {
       setDate(format(new Date(), "yyyy-MM-dd"));
       setTransactionType("Invoice");
       setInvoiceNumber(suggestNextNumber());
       setClientName("");
       setCurrency(defaultCurrency);
-      setAmount("");
-      setTaxAmount("");
-      setNetAmount("");
-      setNetManual(false);
+      setItems([emptyItem()]);
       setStatus("draft");
       setNotes("");
     }
     setNewType("");
   }, [open, editing, defaultCurrency, suggestNextNumber]);
 
-  const baseNum = Number(amount) || 0;
-  const taxNum = Number(taxAmount) || 0;
-
-  const computedNet = useMemo(() => round2(baseNum - taxNum), [baseNum, taxNum]);
-  const netNum = netManual && netAmount !== "" ? Number(netAmount) || 0 : computedNet;
-
-  // Auto-fill net when not manually edited
-  useEffect(() => {
-    if (!netManual) setNetAmount(String(computedNet));
-  }, [computedNet, netManual]);
+  const totals = useMemo(() => {
+    let subtotal = 0;
+    let tax = 0;
+    for (const it of items) {
+      subtotal += itemSubtotal(it);
+      tax += itemTax(it);
+    }
+    subtotal = round2(subtotal);
+    tax = round2(tax);
+    return { subtotal, tax, total: round2(subtotal + tax) };
+  }, [items]);
 
   const allTypes = useMemo(() => {
     const set = new Set([...BASE_TYPES, ...customTypes]);
     return Array.from(set);
   }, [customTypes]);
 
+  const updateItem = (idx: number, patch: Partial<InvoiceItem>) => {
+    setItems((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
+  };
+  const addItem = () => setItems((prev) => [...prev, emptyItem()]);
+  const removeItem = (idx: number) =>
+    setItems((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== idx)));
+
   const saveMut = useMutation({
     mutationFn: async () => {
       if (!user) throw new Error("Not authenticated");
       if (!invoiceNumber.trim()) throw new Error("Invoice number is required");
       if (!clientName.trim()) throw new Error("Client name is required");
-      if (!amount || baseNum < 0) throw new Error("Enter a valid amount");
+      if (items.length === 0) throw new Error("Add at least one item");
+      for (const [i, it] of items.entries()) {
+        if (!it.description.trim()) throw new Error(`Item ${i + 1}: description required`);
+        if ((Number(it.quantity) || 0) <= 0) throw new Error(`Item ${i + 1}: quantity must be > 0`);
+        if ((Number(it.unit_price) || 0) < 0) throw new Error(`Item ${i + 1}: unit price invalid`);
+        if ((Number(it.tax_rate) || 0) < 0) throw new Error(`Item ${i + 1}: tax % invalid`);
+      }
+
+      const cleanItems: InvoiceItem[] = items.map((it) => ({
+        description: it.description.trim(),
+        quantity: round2(Number(it.quantity) || 0),
+        unit_price: round2(Number(it.unit_price) || 0),
+        tax_rate: round2(Number(it.tax_rate) || 0),
+      }));
 
       const payload = {
         user_id: user.id,
@@ -123,11 +173,12 @@ export function InvoiceDrawer({
         invoice_number: invoiceNumber.trim(),
         client_name: clientName.trim(),
         currency,
-        amount: round2(baseNum),
-        tax_amount: round2(taxNum),
-        net_amount: round2(netNum),
+        amount: totals.subtotal,
+        tax_amount: totals.tax,
+        net_amount: totals.total,
         status,
         notes: notes.trim() || null,
+        items: cleanItems,
       };
 
       if (editing) {
@@ -151,11 +202,11 @@ export function InvoiceDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
+      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
         <SheetHeader>
           <SheetTitle>{editing ? "Edit invoice" : "New invoice"}</SheetTitle>
           <SheetDescription>
-            Net updates as you change Amount or Tax. Save when you&apos;re ready.
+            Add one or more items. Subtotal, tax and total are calculated automatically.
           </SheetDescription>
         </SheetHeader>
 
@@ -260,76 +311,133 @@ export function InvoiceDrawer({
             />
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label className="text-xs">Currency</Label>
-              <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CURRENCIES.map((c) => (
-                    <SelectItem key={c.code} value={c.code}>
-                      {c.code} — {c.symbol}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Amount</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                required
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Tax amount</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                value={taxAmount}
-                onChange={(e) => setTaxAmount(e.target.value)}
-              />
-            </div>
+          <div>
+            <Label className="text-xs">Currency</Label>
+            <Select value={currency} onValueChange={setCurrency}>
+              <SelectTrigger className="max-w-[200px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CURRENCIES.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    {c.code} — {c.symbol}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div>
+          {/* ─── LINE ITEMS ─── */}
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <Label className="text-xs">Net amount</Label>
-              {netManual && (
-                <button
-                  type="button"
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => {
-                    setNetManual(false);
-                    setNetAmount(String(computedNet));
-                  }}
-                >
-                  Reset to auto
-                </button>
-              )}
+              <Label className="text-sm font-semibold">Items</Label>
+              <Button type="button" variant="outline" size="sm" onClick={addItem}>
+                <Plus className="h-3.5 w-3.5 mr-1" /> Add item
+              </Button>
             </div>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              value={netAmount}
-              onChange={(e) => {
-                setNetManual(true);
-                setNetAmount(e.target.value);
-              }}
-            />
-            {!netManual && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Auto = Amount − Tax. Type to override.
-              </p>
-            )}
+
+            <div className="space-y-3">
+              {items.map((it, idx) => {
+                const sub = itemSubtotal(it);
+                const tax = itemTax(it);
+                const tot = itemTotal(it);
+                return (
+                  <div
+                    key={idx}
+                    className="rounded-lg border bg-card p-3 space-y-2"
+                  >
+                    <div className="flex gap-2 items-start">
+                      <div className="flex-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Description
+                        </Label>
+                        <Input
+                          value={it.description}
+                          onChange={(e) =>
+                            updateItem(idx, { description: e.target.value })
+                          }
+                          placeholder="What are you charging for?"
+                          required
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="mt-5 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeItem(idx)}
+                        disabled={items.length === 1}
+                        title="Remove item"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Qty</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={it.quantity}
+                          onChange={(e) =>
+                            updateItem(idx, { quantity: Number(e.target.value) })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">
+                          Unit price
+                        </Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={it.unit_price}
+                          onChange={(e) =>
+                            updateItem(idx, { unit_price: Number(e.target.value) })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Tax %</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={it.tax_rate}
+                          onChange={(e) =>
+                            updateItem(idx, { tax_rate: Number(e.target.value) })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-4 text-xs text-muted-foreground pt-1 border-t">
+                      <span>
+                        Subtotal:{" "}
+                        <span className="tabular-nums text-foreground font-medium">
+                          {formatMoney(sub, currency)}
+                        </span>
+                      </span>
+                      <span>
+                        Tax:{" "}
+                        <span className="tabular-nums text-foreground font-medium">
+                          {formatMoney(tax, currency)}
+                        </span>
+                      </span>
+                      <span>
+                        Total:{" "}
+                        <span className="tabular-nums text-foreground font-semibold">
+                          {formatMoney(tot, currency)}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           <div>
@@ -344,21 +452,21 @@ export function InvoiceDrawer({
 
           <div className="rounded-lg bg-muted p-4 grid grid-cols-3 gap-2 text-sm">
             <div>
-              <div className="text-xs text-muted-foreground">Amount</div>
+              <div className="text-xs text-muted-foreground">Subtotal</div>
               <div className="tabular-nums font-medium">
-                {formatMoney(baseNum, currency)}
+                {formatMoney(totals.subtotal, currency)}
               </div>
             </div>
             <div>
               <div className="text-xs text-muted-foreground">Tax</div>
               <div className="tabular-nums font-medium">
-                {formatMoney(taxNum, currency)}
+                {formatMoney(totals.tax, currency)}
               </div>
             </div>
             <div>
-              <div className="text-xs text-muted-foreground">Net</div>
+              <div className="text-xs text-muted-foreground">Total</div>
               <div className="tabular-nums font-semibold">
-                {formatMoney(netNum, currency)}
+                {formatMoney(totals.total, currency)}
               </div>
             </div>
           </div>
