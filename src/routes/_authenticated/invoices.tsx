@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
-import type { Invoice, InvoiceStatus } from "@/lib/types";
+import type { Invoice, InvoiceStatus, BusinessProfile } from "@/lib/types";
+import { generateInvoicePdf } from "@/lib/invoice-pdf";
 import { formatMoney } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Download, Pencil, Trash2, FileText } from "lucide-react";
+import { Plus, Download, Pencil, Trash2, FileText, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { InvoiceDrawer } from "@/components/invoice-drawer";
@@ -153,6 +154,36 @@ function InvoicesPage() {
     }
     return "INV-001";
   }, [lastNumber]);
+
+  const { data: business } = useQuery({
+    queryKey: ["business-profile", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_profile_settings")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return (data ?? null) as BusinessProfile | null;
+    },
+  });
+
+  const handleGeneratePdf = async (inv: Invoice) => {
+    try {
+      const { blobUrl, filename } = await generateInvoicePdf(inv, business ?? null);
+      window.open(blobUrl, "_blank");
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      toast.success("PDF generated");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
@@ -366,6 +397,14 @@ function InvoicesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleGeneratePdf(inv)}
+                            title="Generate PDF"
+                          >
+                            <FileDown className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"

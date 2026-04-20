@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Lock, Plus, Trash2, EyeOff, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { BusinessProfileTab } from "@/components/business-profile-tab";
 
 export const Route = createFileRoute("/_authenticated/settings")({
   component: SettingsPage,
@@ -49,6 +50,7 @@ function SettingsPage() {
         <TabsList>
           <TabsTrigger value="categories">Categories</TabsTrigger>
           <TabsTrigger value="taxes">Taxes</TabsTrigger>
+          <TabsTrigger value="business">Business</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
         </TabsList>
         <TabsContent value="categories" className="mt-4">
@@ -56,6 +58,9 @@ function SettingsPage() {
         </TabsContent>
         <TabsContent value="taxes" className="mt-4">
           <TaxesTab />
+        </TabsContent>
+        <TabsContent value="business" className="mt-4">
+          <BusinessProfileTab />
         </TabsContent>
         <TabsContent value="account" className="mt-4">
           <AccountTab />
