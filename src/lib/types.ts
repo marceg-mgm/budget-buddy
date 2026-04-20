@@ -44,3 +44,33 @@ export interface Expense {
   receipt_url: string | null;
   created_at: string;
 }
+
+export type InvoiceStatus = "draft" | "sent" | "paid";
+
+export interface Invoice {
+  id: string;
+  user_id: string;
+  date: string;
+  transaction_type: string;
+  invoice_number: string;
+  client_name: string;
+  currency: string;
+  amount: number;
+  net_amount: number;
+  tax_amount: number;
+  status: InvoiceStatus;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface BusinessProfile {
+  id: string;
+  user_id: string;
+  business_name: string | null;
+  business_email: string | null;
+  business_phone: string | null;
+  business_address: string | null;
+  logo_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
