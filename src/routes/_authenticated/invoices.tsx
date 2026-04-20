@@ -155,6 +155,36 @@ function InvoicesPage() {
     return "INV-001";
   }, [lastNumber]);
 
+  const { data: business } = useQuery({
+    queryKey: ["business-profile", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("user_profile_settings")
+        .select("*")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      return (data ?? null) as BusinessProfile | null;
+    },
+  });
+
+  const handleGeneratePdf = async (inv: Invoice) => {
+    try {
+      const { blobUrl, filename } = await generateInvoicePdf(inv, business ?? null);
+      window.open(blobUrl, "_blank");
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+      toast.success("PDF generated");
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase.from("invoices").delete().eq("id", id);
@@ -367,6 +397,14 @@ function InvoicesPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleGeneratePdf(inv)}
+                            title="Generate PDF"
+                          >
+                            <FileDown className="h-4 w-4" />
+                          </Button>
                           <Button
                             variant="ghost"
                             size="icon"
