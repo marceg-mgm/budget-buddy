@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useMemo, useCallback } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
-import type { Invoice, InvoiceStatus } from "@/lib/types";
+import type { Invoice, InvoiceStatus, BusinessProfile } from "@/lib/types";
+import { generateInvoicePdf } from "@/lib/invoice-pdf";
 import { formatMoney } from "@/lib/currency";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Download, Pencil, Trash2, FileText } from "lucide-react";
+import { Plus, Download, Pencil, Trash2, FileText, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { InvoiceDrawer } from "@/components/invoice-drawer";
