@@ -23,6 +23,7 @@ export function BusinessProfileTab() {
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [extra, setExtra] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -47,6 +48,7 @@ export function BusinessProfileTab() {
       setEmail(profile.business_email ?? "");
       setPhone(profile.business_phone ?? "");
       setAddress(profile.business_address ?? "");
+      setExtra(profile.business_extra ?? "");
       setLogoUrl(profile.logo_url ?? null);
     }
   }, [profile]);
@@ -61,6 +63,7 @@ export function BusinessProfileTab() {
       business_email: email.trim() || null,
       business_phone: phone.trim() || null,
       business_address: address.trim() || null,
+      business_extra: extra.trim() || null,
       logo_url: logoUrl,
     };
     const { error } = await supabase
@@ -160,6 +163,18 @@ export function BusinessProfileTab() {
                 placeholder="123 Main St, Toronto, ON"
                 rows={2}
               />
+            </div>
+            <div className="md:col-span-2">
+              <Label className="text-xs">Other (optional)</Label>
+              <Textarea
+                value={extra}
+                onChange={(e) => setExtra(e.target.value)}
+                placeholder="Website, Tax ID, registration number, payment instructions…"
+                rows={2}
+              />
+              <p className="text-[11px] text-muted-foreground mt-1">
+                Free-form info shown in the invoice header. One line per row.
+              </p>
             </div>
           </div>
         </CardContent>

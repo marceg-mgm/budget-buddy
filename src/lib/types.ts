@@ -78,6 +78,7 @@ export interface BusinessProfile {
   business_email: string | null;
   business_phone: string | null;
   business_address: string | null;
+  business_extra: string | null;
   logo_url: string | null;
   created_at: string;
   updated_at: string;
