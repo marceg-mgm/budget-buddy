@@ -111,29 +111,46 @@ export async function generateInvoicePdf(
   const metaValueX = pageWidth - margin;
   const blockTop = y;
 
-  // BILL TO
+  // Build meta rows dynamically (Invoice, Date, optional Terms, optional Due Date, Status)
+  const metaRows: { label: string; value: string }[] = [
+    { label: "INVOICE", value: invoice.invoice_number },
+    { label: "DATE", value: format(new Date(invoice.date), "MM/dd/yyyy") },
+  ];
+  if (invoice.terms && invoice.terms.trim()) {
+    metaRows.push({ label: "TERMS", value: invoice.terms.trim() });
+  }
+  if (invoice.due_date) {
+    metaRows.push({
+      label: "DUE DATE",
+      value: format(new Date(invoice.due_date), "MM/dd/yyyy"),
+    });
+  }
+  metaRows.push({ label: "STATUS", value: invoice.status.toUpperCase() });
+
+  // BILL TO label
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(...muted);
   doc.text("BILL TO", margin, y);
 
-  // META labels
-  doc.text("INVOICE", metaLabelX, y);
-  doc.text("DATE", metaLabelX, y + 14);
-  doc.text("STATUS", metaLabelX, y + 28);
-
   // BILL TO value
-  doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
   doc.setTextColor(...ink);
   doc.text(invoice.client_name, margin, y + 14);
 
-  // META values (right aligned)
-  doc.text(invoice.invoice_number, metaValueX, y + 0, { align: "right" });
-  doc.text(format(new Date(invoice.date), "MM/dd/yyyy"), metaValueX, y + 14, { align: "right" });
-  doc.text(invoice.status.toUpperCase(), metaValueX, y + 28, { align: "right" });
+  // META rows (right aligned, label left of value)
+  let metaY = y;
+  for (const row of metaRows) {
+    doc.setFontSize(8);
+    doc.setTextColor(...muted);
+    doc.text(row.label, metaLabelX, metaY);
+    doc.setFontSize(10);
+    doc.setTextColor(...ink);
+    doc.text(row.value, metaValueX, metaY, { align: "right" });
+    metaY += 14;
+  }
 
-  y = blockTop + 56;
+  y = Math.max(blockTop + 56, metaY + 8);
 
   // ─── ITEMS TABLE ───
   // Always render a table. If no items array, synthesize a single row from the invoice totals.
