@@ -131,60 +131,69 @@ export async function generateInvoicePdf(
   y = blockTop + 56;
 
   // ─── ITEMS TABLE ───
-  const items = Array.isArray(invoice.items) ? invoice.items : [];
-  const hasItems = items.length > 0;
+  // Always render a table. If no items array, synthesize a single row from the invoice totals.
+  const rawItems = Array.isArray(invoice.items) ? invoice.items : [];
+  const items: InvoiceItem[] =
+    rawItems.length > 0
+      ? rawItems
+      : [
+          {
+            description: invoice.transaction_type || "Service",
+            quantity: 1,
+            unit_price: Number(invoice.amount) || 0,
+            tax_rate:
+              Number(invoice.amount) > 0
+                ? Math.round((Number(invoice.tax_amount) / Number(invoice.amount)) * 10000) / 100
+                : 0,
+          },
+        ];
 
-  if (hasItems) {
-    const body = items.map((it) => {
-      const qty = Number(it.quantity) || 0;
-      const unit = Number(it.unit_price) || 0;
-      const rate = Number(it.tax_rate) || 0;
-      const sub = Math.round(qty * unit * 100) / 100;
-      const tax = Math.round(((sub * rate) / 100) * 100) / 100;
-      const total = Math.round((sub + tax) * 100) / 100;
-      return [
-        it.description ?? "",
-        rate === 0 ? "Zero-rated" : `${rate}%`,
-        String(qty),
-        formatMoney(unit, invoice.currency),
-        formatMoney(total, invoice.currency),
-      ];
-    });
+  const body = items.map((it) => {
+    const qty = Number(it.quantity) || 0;
+    const unit = Number(it.unit_price) || 0;
+    const rate = Number(it.tax_rate) || 0;
+    const sub = Math.round(qty * unit * 100) / 100;
+    const tax = Math.round(((sub * rate) / 100) * 100) / 100;
+    const total = Math.round((sub + tax) * 100) / 100;
+    return [
+      it.description ?? "",
+      String(qty),
+      formatMoney(unit, invoice.currency),
+      rate === 0 ? "—" : `${rate}%`,
+      formatMoney(total, invoice.currency),
+    ];
+  });
 
-    autoTable(doc, {
-      startY: y,
-      margin: { left: margin, right: margin },
-      head: [["DESCRIPTION", "TAX", "QTY", "RATE", "AMOUNT"]],
-      body,
-      theme: "plain",
-      headStyles: {
-        fillColor: [245, 246, 248],
-        textColor: muted,
-        fontStyle: "normal",
-        fontSize: 8,
-        cellPadding: { top: 8, bottom: 8, left: 8, right: 8 },
-      },
-      bodyStyles: {
-        fontSize: 10,
-        textColor: ink,
-        cellPadding: { top: 10, bottom: 10, left: 8, right: 8 },
-        valign: "top",
-      },
-      columnStyles: {
-        0: { cellWidth: "auto" },
-        1: { cellWidth: 70 },
-        2: { halign: "right", cellWidth: 40 },
-        3: { halign: "right", cellWidth: 70 },
-        4: { halign: "right", cellWidth: 80 },
-      },
-      didDrawPage: () => {
-        // no-op
-      },
-    });
+  autoTable(doc, {
+    startY: y,
+    margin: { left: margin, right: margin },
+    head: [["DESCRIPTION", "QTY", "UNIT PRICE", "TAX", "TOTAL"]],
+    body,
+    theme: "plain",
+    headStyles: {
+      fillColor: [245, 246, 248],
+      textColor: muted,
+      fontStyle: "bold",
+      fontSize: 8,
+      cellPadding: { top: 8, bottom: 8, left: 8, right: 8 },
+    },
+    bodyStyles: {
+      fontSize: 10,
+      textColor: ink,
+      cellPadding: { top: 10, bottom: 10, left: 8, right: 8 },
+      valign: "top",
+    },
+    columnStyles: {
+      0: { cellWidth: "auto" },
+      1: { halign: "right", cellWidth: 45 },
+      2: { halign: "right", cellWidth: 80 },
+      3: { halign: "right", cellWidth: 55 },
+      4: { halign: "right", cellWidth: 85 },
+    },
+  });
 
-    // @ts-expect-error lastAutoTable is added at runtime by jspdf-autotable
-    y = (doc.lastAutoTable?.finalY ?? y) + 8;
-  }
+  // @ts-expect-error lastAutoTable is added at runtime by jspdf-autotable
+  y = (doc.lastAutoTable?.finalY ?? y) + 12;
 
   // Dashed separator before totals
   doc.setDrawColor(210);
