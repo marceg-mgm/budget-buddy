@@ -82,10 +82,15 @@ export async function generateInvoicePdf(
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(...muted);
+  const extraLines = (business?.business_extra ?? "")
+    .split(/\r?\n/)
+    .map((s) => s.trim())
+    .filter(Boolean);
   for (const line of [
     business?.business_email,
     business?.business_phone,
     business?.business_address,
+    ...extraLines,
   ].filter(Boolean) as string[]) {
     const wrapped = doc.splitTextToSize(line, 240);
     doc.text(wrapped, rightX, ry, { align: "right" });
