@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
-import type { Invoice, BusinessProfile } from "@/lib/types";
+import type { Invoice, BusinessProfile, InvoiceItem } from "@/lib/types";
 import { formatMoney } from "@/lib/currency";
 
 async function loadImageAsDataUrl(url: string): Promise<{ data: string; w: number; h: number } | null> {
