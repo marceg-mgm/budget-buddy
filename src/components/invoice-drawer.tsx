@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -74,6 +75,10 @@ export function InvoiceDrawer({
   const [status, setStatus] = useState<InvoiceStatus>("draft");
   const [notes, setNotes] = useState("");
   const [newType, setNewType] = useState("");
+  const [showTerms, setShowTerms] = useState(false);
+  const [terms, setTerms] = useState("");
+  const [showDueDate, setShowDueDate] = useState(false);
+  const [dueDate, setDueDate] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +90,10 @@ export function InvoiceDrawer({
       setCurrency(editing.currency);
       setStatus(editing.status);
       setNotes(editing.notes ?? "");
+      setTerms(editing.terms ?? "");
+      setShowTerms(!!editing.terms);
+      setDueDate(editing.due_date ?? "");
+      setShowDueDate(!!editing.due_date);
       const existing = Array.isArray(editing.items) ? editing.items : [];
       if (existing.length > 0) {
         setItems(
@@ -118,6 +127,10 @@ export function InvoiceDrawer({
       setItems([emptyItem()]);
       setStatus("draft");
       setNotes("");
+      setShowTerms(false);
+      setTerms("");
+      setShowDueDate(false);
+      setDueDate("");
     }
     setNewType("");
   }, [open, editing, defaultCurrency, suggestNextNumber]);
@@ -179,6 +192,8 @@ export function InvoiceDrawer({
         status,
         notes: notes.trim() || null,
         items: cleanItems,
+        terms: showTerms && terms.trim() ? terms.trim() : null,
+        due_date: showDueDate && dueDate ? dueDate : null,
       };
 
       if (editing) {
