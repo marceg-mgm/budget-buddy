@@ -342,7 +342,53 @@ export function InvoiceDrawer({
             </Select>
           </div>
 
-          {/* ─── LINE ITEMS ─── */}
+          {/* ─── OPTIONAL HEADER FIELDS ─── */}
+          <div className="rounded-lg border bg-card p-3 space-y-3">
+            <Label className="text-xs font-semibold text-muted-foreground">
+              Optional header fields
+            </Label>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="show-terms"
+                  checked={showTerms}
+                  onCheckedChange={(v) => setShowTerms(v === true)}
+                />
+                <Label htmlFor="show-terms" className="text-sm cursor-pointer">
+                  Include Terms
+                </Label>
+              </div>
+              {showTerms && (
+                <Input
+                  value={terms}
+                  onChange={(e) => setTerms(e.target.value)}
+                  placeholder="e.g. Net 30, Due on receipt"
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="show-due"
+                  checked={showDueDate}
+                  onCheckedChange={(v) => setShowDueDate(v === true)}
+                />
+                <Label htmlFor="show-due" className="text-sm cursor-pointer">
+                  Include Due Date
+                </Label>
+              </div>
+              {showDueDate && (
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              )}
+            </div>
+          </div>
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-semibold">Items</Label>
