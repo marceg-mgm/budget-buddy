@@ -68,6 +68,8 @@ export interface Invoice {
   status: InvoiceStatus;
   notes: string | null;
   items: InvoiceItem[];
+  terms: string | null;
+  due_date: string | null;
   created_at: string;
 }
 

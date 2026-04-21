@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -74,6 +75,10 @@ export function InvoiceDrawer({
   const [status, setStatus] = useState<InvoiceStatus>("draft");
   const [notes, setNotes] = useState("");
   const [newType, setNewType] = useState("");
+  const [showTerms, setShowTerms] = useState(false);
+  const [terms, setTerms] = useState("");
+  const [showDueDate, setShowDueDate] = useState(false);
+  const [dueDate, setDueDate] = useState("");
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +90,10 @@ export function InvoiceDrawer({
       setCurrency(editing.currency);
       setStatus(editing.status);
       setNotes(editing.notes ?? "");
+      setTerms(editing.terms ?? "");
+      setShowTerms(!!editing.terms);
+      setDueDate(editing.due_date ?? "");
+      setShowDueDate(!!editing.due_date);
       const existing = Array.isArray(editing.items) ? editing.items : [];
       if (existing.length > 0) {
         setItems(
@@ -118,6 +127,10 @@ export function InvoiceDrawer({
       setItems([emptyItem()]);
       setStatus("draft");
       setNotes("");
+      setShowTerms(false);
+      setTerms("");
+      setShowDueDate(false);
+      setDueDate("");
     }
     setNewType("");
   }, [open, editing, defaultCurrency, suggestNextNumber]);
@@ -179,6 +192,8 @@ export function InvoiceDrawer({
         status,
         notes: notes.trim() || null,
         items: cleanItems,
+        terms: showTerms && terms.trim() ? terms.trim() : null,
+        due_date: showDueDate && dueDate ? dueDate : null,
       };
 
       if (editing) {
@@ -327,7 +342,53 @@ export function InvoiceDrawer({
             </Select>
           </div>
 
-          {/* ─── LINE ITEMS ─── */}
+          {/* ─── OPTIONAL HEADER FIELDS ─── */}
+          <div className="rounded-lg border bg-card p-3 space-y-3">
+            <Label className="text-xs font-semibold text-muted-foreground">
+              Optional header fields
+            </Label>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="show-terms"
+                  checked={showTerms}
+                  onCheckedChange={(v) => setShowTerms(v === true)}
+                />
+                <Label htmlFor="show-terms" className="text-sm cursor-pointer">
+                  Include Terms
+                </Label>
+              </div>
+              {showTerms && (
+                <Input
+                  value={terms}
+                  onChange={(e) => setTerms(e.target.value)}
+                  placeholder="e.g. Net 30, Due on receipt"
+                />
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="show-due"
+                  checked={showDueDate}
+                  onCheckedChange={(v) => setShowDueDate(v === true)}
+                />
+                <Label htmlFor="show-due" className="text-sm cursor-pointer">
+                  Include Due Date
+                </Label>
+              </div>
+              {showDueDate && (
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              )}
+            </div>
+          </div>
+
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-semibold">Items</Label>
